@@ -218,3 +218,14 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# AERIS-MK2 local data and generated artifacts
+/Dataset/
+/models/
+/artifacts/
+/uploads/
+/logs/
+*.joblib
+*.pkl
+*.h5
+*.onnx

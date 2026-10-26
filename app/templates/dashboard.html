@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}Overview · AERIS-MK2{% endblock %}
+{% block content %}
+<section class="page-heading">
+  <div>
+    <div class="eyebrow">TELEMETRY OPERATIONS</div>
+    <h1>Overview</h1>
+    <p class="muted">Welcome, {{ username }}. Explore uploaded telemetry with descriptive statistics and optional channel-specific model inference.</p>
+  </div>
+  <span class="status-chip"><span class="status-dot"></span>
+    {% if model_channels %}MODEL ARTIFACT READY{% else %}DESCRIPTIVE MODE{% endif %}
+  </span>
+</section>
+
+{% if model_channels %}
+<section class="notice notice-pending" aria-labelledby="model-caveat-title">
+  <div class="notice-icon" aria-hidden="true">!</div>
+  <div>
+    <h2 id="model-caveat-title">Model method and syllabus caveat</h2>
+    <p>
+      A locally trained Linear Regression forecaster is available. Its
+      validation-calibrated residual threshold is an additional detection step;
+      the supplied project materials do not establish that this step is
+      syllabus-authorized. Treat flags as statistical warnings, not diagnoses.
+    </p>
+    {% if evaluation_report %}
+    <p class="notice-detail">
+      Previously measured held-out performance: {{ evaluation_report.model_name }}
+      on {{ evaluation_report.regression_metrics.sample_count }} scalar predictions
+      across {{ evaluation_report.regression_channels|length }} NASA channels.
+      This is not an accuracy score for an upload.
+    </p>
+    {% endif %}
+  </div>
+</section>
+{% else %}
+<section class="notice notice-pending" aria-labelledby="pending-title">
+  <div class="notice-icon" aria-hidden="true">!</div>
+  <div>
+    <h2 id="pending-title">Model analysis is not enabled yet</h2>
+    <p>
+      Descriptive analysis is available, but model predictions and evaluation
+      can run after you explicitly train the local Linear Regression model.
+      Its residual-threshold anomaly step is an additional method and is not
+      confirmed as syllabus-authorized; flags are statistical warnings, not
+      confirmed anomalies.
+    </p>
+    <p class="notice-detail">
+      Model workflow: train locally, review the saved held-out evaluation,
+      then select a channel that matches the uploaded sensor columns.
+    </p>
+  </div>
+</section>
+{% endif %}
+
+<div class="dashboard-grid">
+  <section class="panel upload-panel" aria-labelledby="upload-title">
+    <div class="panel-heading">
+      <div>
+        <div class="eyebrow">TELEMETRY INPUT</div>
+        <h2 id="upload-title">Analyze a CSV file</h2>
+      </div>
+      <span class="subtle-label">
+        {% if model_channels %}MODEL IS OPT-IN{% else %}DESCRIPTIVE ONLY{% endif %}
+      </span>
+    </div>
+    {% if upload_error %}
+    <div class="notice notice-error" role="alert">{{ upload_error }}</div>
+    {% endif %}
+    <form id="telemetry-upload-form" class="upload-form"
+          action="{{ url_for('main.analyze') }}" method="post"
+          enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="file-picker" for="telemetry_file">
+        <span class="upload-icon" aria-hidden="true">↑</span>
+        <strong>Choose a telemetry CSV</strong>
+        <span class="muted">Up to 5 MB · UTF-8 · at most 100,000 records</span>
+        <input id="telemetry_file" name="telemetry_file" type="file"
+               accept=".csv,text/csv" required>
+      </label>
+      <p class="helper-text">
+        Required header: <code>record_index,sensor_1,sensor_2,...</code>.
+        Indices must increase by exactly one for model forecasting; sensor
+        values must be finite numbers without blanks.
+      </p>
+      {% if model_channels %}
+      <label class="field-label" for="channel_id">NASA channel model</label>
+      <select id="channel_id" name="channel_id">
+        <option value="">Descriptive analysis only</option>
+        {% for channel in model_channels %}
+        <option value="{{ channel.channel_id }}">{{ channel.channel_id }} · {{ channel.feature_count }} features</option>
+        {% endfor %}
+      </select>
+      <label class="consent-label">
+        <input type="checkbox" name="confirm_channel_mapping" value="yes">
+        <span>My CSV sensor columns are in the same feature order as the selected NASA channel.</span>
+      </label>
+      {% else %}
+      <div class="notice notice-warning" role="status">
+        {{ model_message or "No trained model artifact is available. Descriptive analysis still works." }}
+      </div>
+      {% endif %}
+      <button class="button button-primary" type="submit">Analyze telemetry</button>
+    </form>
+    <p class="helper-text">
+      Leave the channel unselected for descriptive-only results. Model inference
+      requires the exact channel feature count, consecutive indices, and the
+      explicit mapping confirmation above. A compatible input does not prove
+      that its values are from NASA or have the same units.
+    </p>
+  </section>
+
+  <aside class="panel status-panel" aria-labelledby="status-title">
+    <div class="eyebrow">PROJECT STATUS</div>
+    <h2 id="status-title">Validation first</h2>
+    <ul class="status-list">
+      <li><span class="status-marker complete">✓</span><span>Dataset inventory completed</span></li>
+      <li><span class="status-marker complete">✓</span><span>Conflicting and missing labels excluded</span></li>
+      <li><span class="status-marker pending">3</span><span>Get approval for residual-threshold flags</span></li>
+      <li>
+        <span class="status-marker {% if model_channels %}complete{% else %}pending{% endif %}">
+          {% if model_channels %}✓{% else %}4{% endif %}
+        </span>
+        <span>{% if model_channels %}Local artifacts loaded{% else %}Train locally with scripts\train_model.py{% endif %}</span>
+      </li>
+    </ul>
+    <a class="text-link" href="{{ url_for('main.history') }}">View analysis history <span aria-hidden="true">→</span></a>
+  </aside>
+</div>
+{% endblock %}
+{% block page_scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}" defer></script>
+{% endblock %}

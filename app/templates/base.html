@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#100e18">
+  <title>{% block title %}AERIS-MK2{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  {% if session.get("username") %}
+  <header class="topbar">
+    <a class="brand" href="{{ url_for('main.dashboard') }}" aria-label="AERIS-MK2 dashboard">
+      <span class="brand-mark" aria-hidden="true">A</span>
+      <span>AERIS<span class="brand-light"> / MK2</span></span>
+    </a>
+    <nav class="top-nav" aria-label="Main navigation">
+      <a href="{{ url_for('main.dashboard') }}">Overview</a>
+      <a href="{{ url_for('main.history') }}">History</a>
+      <span class="user-pill">{{ session["username"] }}</span>
+      <form action="{{ url_for('auth.logout') }}" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="nav-logout" type="submit">Sign out</button>
+      </form>
+    </nav>
+  </header>
+  {% endif %}
+  <main class="{% block main_class %}page{% endblock %}">
+    {% block content %}{% endblock %}
+  </main>
+  {% block page_scripts %}{% endblock %}
+  <footer class="site-footer">
+    <span>AERIS-MK2</span>
+    <span>Educational prototype · Not for mission-critical use</span>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}History · AERIS-MK2{% endblock %}
+{% block content %}
+<section class="page-heading">
+  <div>
+    <div class="eyebrow">RECORDS</div>
+    <h1>Analysis history</h1>
+    <p class="muted">Only summarized results are intended to be stored here.</p>
+  </div>
+</section>
+<section class="panel history-panel">
+  {% if history_message %}
+  <div class="empty-state">
+    <span class="empty-symbol" aria-hidden="true">—</span>
+    <h2>No history to show</h2>
+    <p class="muted">{{ history_message }}</p>
+  </div>
+  {% else %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Date</th>
+          <th scope="col">File</th>
+          <th scope="col">Channel</th>
+          <th scope="col">Records</th>
+          <th scope="col">Sensors</th>
+          <th scope="col">Model flags</th>
+          <th scope="col">Analysis status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in analyses %}
+        <tr>
+          <td>{{ item.created_at.strftime("%Y-%m-%d %H:%M UTC") }}</td>
+          <td>{{ item.uploaded_filename }}</td>
+          <td>{{ item.channel_id or "—" }}</td>
+          <td>{{ item.record_count }}</td>
+          <td>{{ item.descriptive_statistics|length }}</td>
+          <td>{{ item.anomaly_count if item.anomaly_count is not none else "Not evaluated" }}</td>
+          <td>{{ item.prediction_summary }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

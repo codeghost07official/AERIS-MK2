@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Sign in · AERIS-MK2{% endblock %}
+{% block main_class %}login-page{% endblock %}
+{% block content %}
+<section class="login-card" aria-labelledby="login-title">
+  <div class="eyebrow">AEROSPACE TELEMETRY INTELLIGENCE</div>
+  <div class="brand-mark login-mark" aria-hidden="true">A</div>
+  <h1 id="login-title">Welcome back</h1>
+  <p class="muted">Sign in to access your private telemetry workspace.</p>
+  {% if not login_configured %}
+  <div class="notice notice-warning" role="status">
+    No users are configured. Add a username and a generated password hash to
+    a matching user slot in your local environment.
+  </div>
+  {% endif %}
+  {% if error %}
+  <div class="notice notice-error" role="alert">{{ error }}</div>
+  {% endif %}
+  <form method="post" action="{{ url_for('auth.login') }}" class="login-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="username">Username</label>
+    <input id="username" name="username" type="text" autocomplete="username"
+           required maxlength="120" autofocus>
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password"
+           autocomplete="current-password" required>
+    <button class="button button-primary button-full" type="submit">Sign in</button>
+  </form>
+  <p class="login-footnote">Private access · Registration is disabled</p>
+</section>
+{% endblock %}

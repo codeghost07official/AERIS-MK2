@@ -1,0 +1,322 @@
+{% extends "base.html" %}
+{% block title %}Analysis results · AERIS-MK2{% endblock %}
+{% block content %}
+<section class="page-heading">
+  <div>
+    <div class="eyebrow">TELEMETRY ANALYSIS</div>
+    <h1>Analysis results</h1>
+    <p class="muted">{{ filename }} · {{ analysis.record_count }} records · {{ analysis.sensor_count }} sensors</p>
+  </div>
+  <a class="button button-secondary" href="{{ url_for('main.dashboard') }}">Analyze another file</a>
+</section>
+
+{% if model_result %}
+<section class="notice notice-pending results-model-notice" aria-labelledby="model-notice-title">
+  <div class="notice-icon" aria-hidden="true">i</div>
+  <div>
+    <h2 id="model-notice-title">Model output for {{ model_result.channel_id }}</h2>
+    <p>
+      {{ model_result.model_name }}: {{ model_result.prediction_method }}
+      The chart and table show one-step predictions for the first selected
+      feature. The residual threshold flagged {{ model_result.anomaly_count }}
+      record(s) at score &gt; {{ "%.6g"|format(model_result.threshold) }}.
+      Flags are not confirmed anomalies, and this upload has no ground-truth
+      labels; its accuracy is unavailable.
+    </p>
+  </div>
+</section>
+{% else %}
+<section class="notice notice-pending results-model-notice" aria-labelledby="model-notice-title">
+  <div class="notice-icon" aria-hidden="true">i</div>
+  <div>
+    <h2 id="model-notice-title">Descriptive results only</h2>
+    <p>
+      These statistics describe the uploaded values; they are not predictions
+      or confirmed diagnoses.
+      {{ model_warning or "No model was selected for this upload." }}
+      {% if evaluation_report %}
+      Global held-out model evaluation is available on this page, but was not
+      used to label this upload.
+      {% endif %}
+    </p>
+  </div>
+</section>
+{% endif %}
+
+<section class="metric-grid" aria-label="Analysis summary">
+  <article class="metric-card">
+    <span class="metric-label">Records processed</span>
+    <strong>{{ "{:,}".format(analysis.record_count) }}</strong>
+    <span class="metric-caption">Valid numeric rows</span>
+  </article>
+  <article class="metric-card">
+    <span class="metric-label">Sensor channels</span>
+    <strong>{{ analysis.sensor_count }}</strong>
+    <span class="metric-caption">Present in uploaded file</span>
+  </article>
+  <article class="metric-card">
+    <span class="metric-label">Model predictions</span>
+    {% if model_result %}
+    <strong>{{ model_result.record_count }}</strong>
+    <span class="metric-caption">One-step predictions · {{ model_result.channel_id }}</span>
+    {% else %}
+    <strong class="metric-unavailable">Unavailable</strong>
+    <span class="metric-caption">{{ model_warning or "No channel model selected" }}</span>
+    {% endif %}
+  </article>
+  <article class="metric-card">
+    <span class="metric-label">Held-out RMSE</span>
+    {% if evaluation_report and evaluation_report.regression_metrics.rmse is not none %}
+    <strong>{{ "%.6g"|format(evaluation_report.regression_metrics.rmse) }}</strong>
+    <span class="metric-caption">Previously measured · not upload accuracy</span>
+    {% else %}
+    <strong class="metric-unavailable">Unavailable</strong>
+    <span class="metric-caption">No saved model evaluation report</span>
+    {% endif %}
+  </article>
+</section>
+
+{% if evaluation_report %}
+<section class="panel summary-panel" aria-labelledby="heldout-title">
+  <div class="panel-heading">
+    <div>
+      <div class="eyebrow">SAVED MODEL EVALUATION</div>
+      <h2 id="heldout-title">{{ evaluation_report.model_name }}</h2>
+    </div>
+    <span class="subtle-label">HELD-OUT NASA TEST ARRAYS</span>
+  </div>
+  <p>{{ evaluation_report.split_method }}</p>
+  <p class="chart-explanation">{{ evaluation_report.evaluation_dataset }}</p>
+  <p class="chart-explanation">
+    Regression metrics are aggregated over
+    {{ evaluation_report.regression_metrics.sample_count }} scalar predictions
+    in {{ evaluation_report.regression_channels|length }} channels. These
+    summarize numerical forecasting error, not individual upload accuracy.
+  </p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th scope="col">Metric</th><th scope="col">Measured value</th><th scope="col">Meaning and limitation</th></tr></thead>
+      <tbody>
+        <tr>
+          <th scope="row">MSE</th>
+          <td>{{ "%.6g"|format(evaluation_report.regression_metrics.mse) }}</td>
+          <td>Mean squared numerical prediction error; expressed in squared telemetry units.</td>
+        </tr>
+        <tr>
+          <th scope="row">RMSE</th>
+          <td>{{ "%.6g"|format(evaluation_report.regression_metrics.rmse) }}</td>
+          <td>Square root of MSE; same units as the target telemetry.</td>
+        </tr>
+        <tr>
+          <th scope="row">MAPE</th>
+          {% if evaluation_report.regression_metrics.mape_percent is not none %}
+          <td>{{ "%.6g"|format(evaluation_report.regression_metrics.mape_percent) }}%</td>
+          {% else %}
+          <td>Unavailable</td>
+          {% endif %}
+          <td>
+            Mean absolute percentage error. Zero-valued targets
+            ({{ evaluation_report.regression_metrics.mape_excluded_zero_count }})
+            are excluded; small nonzero targets can also make MAPE unstable.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  {% if evaluation_report.classification_metrics %}
+  <h3>Residual-flag comparison to valid labels (separate task)</h3>
+  <p class="chart-explanation">
+    Evaluated over {{ evaluation_report.classification_metrics.sample_count }}
+    test records from {{ evaluation_report.classification_channels|length }}
+    unique, length-matched labeled channels. This result does not establish
+    syllabus approval for residual thresholding.
+  </p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th scope="col">Precision</th><th scope="col">Recall</th><th scope="col">F1</th><th scope="col">Accuracy</th></tr></thead>
+      <tbody><tr>
+        <td>{% if evaluation_report.classification_metrics.precision is not none %}{{ "%.4f"|format(evaluation_report.classification_metrics.precision) }}{% else %}Unavailable{% endif %}</td>
+        <td>{% if evaluation_report.classification_metrics.recall is not none %}{{ "%.4f"|format(evaluation_report.classification_metrics.recall) }}{% else %}Unavailable{% endif %}</td>
+        <td>{% if evaluation_report.classification_metrics.f1_score is not none %}{{ "%.4f"|format(evaluation_report.classification_metrics.f1_score) }}{% else %}Unavailable{% endif %}</td>
+        <td>{{ "%.4f"|format(evaluation_report.classification_metrics.accuracy) }}</td>
+      </tr></tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="notice notice-warning" role="status">
+    Binary label metrics are unavailable. {{ evaluation_report.classification_metrics_scope }}
+  </p>
+  {% endif %}
+  <p class="helper-text">
+    Channels excluded from label-based evaluation: duplicate labels
+    {{ evaluation_report.excluded_from_classification.duplicate_labels }},
+    missing labels {{ evaluation_report.excluded_from_classification.missing_unique_labels }},
+    length mismatches {{ evaluation_report.excluded_from_classification.length_mismatches }}.
+  </p>
+</section>
+{% endif %}
+
+<section class="results-grid">
+  <article class="panel chart-panel">
+    <div class="panel-heading">
+      <div>
+        <div class="eyebrow">RECORD ORDER</div>
+        <h2>Telemetry values</h2>
+      </div>
+    </div>
+    <p class="chart-explanation">
+      {{ analysis.chart_note }}
+      {% if model_result %}
+      The selected channel's first feature is overlaid with one-step predictions;
+      red points (up to 500) are residual-threshold flags, not confirmed anomalies.
+      {% else %}
+      Lines show uploaded values, not model output.
+      {% endif %}
+    </p>
+    <div class="chart-container">
+      <canvas id="telemetry-chart" aria-label="Telemetry sensor values across record order"></canvas>
+      <p class="chart-fallback" id="telemetry-chart-fallback" hidden>
+        The interactive chart could not load. The numerical summary below is still available.
+      </p>
+    </div>
+  </article>
+
+  <article class="panel chart-panel distribution-panel">
+    <div class="panel-heading">
+      <div>
+        <div class="eyebrow">VALUE DISTRIBUTION</div>
+        <h2>Sensor distribution</h2>
+      </div>
+      <label class="select-label" for="sensor-select">Sensor</label>
+    </div>
+    <select id="sensor-select" aria-label="Select a sensor for the distribution chart">
+      {% for sensor in analysis.sensors %}
+      <option value="{{ loop.index0 }}">{{ sensor.name }}</option>
+      {% endfor %}
+    </select>
+    <p class="chart-explanation">Histogram of observed uploaded values for the selected sensor.</p>
+    <div class="chart-container distribution-chart">
+      <canvas id="distribution-chart" aria-label="Selected sensor value distribution"></canvas>
+      <p class="chart-fallback" id="distribution-chart-fallback" hidden>
+        The interactive chart could not load. The numerical summary below is still available.
+      </p>
+    </div>
+  </article>
+</section>
+
+{% if model_result %}
+<section class="panel summary-panel" aria-labelledby="prediction-title">
+  <div class="panel-heading">
+    <div>
+      <div class="eyebrow">UPLOAD-SPECIFIC OUTPUT</div>
+      <h2 id="prediction-title">Recent one-step predictions · sensor_1</h2>
+    </div>
+    <span class="subtle-label">NO UPLOAD GROUND TRUTH SCORE</span>
+  </div>
+  <p class="chart-explanation">
+    Each prediction uses the preceding complete feature vector. Model flags use
+    the selected channel's saved validation threshold; they are not confirmed
+    anomalies. The held-out metrics above are model-level test results, not
+    metrics calculated for this file.
+  </p>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th scope="col">Record index</th><th scope="col">Observed sensor_1</th><th scope="col">Predicted sensor_1</th><th scope="col">Residual RMSE</th><th scope="col">Model flag</th></tr>
+      </thead>
+      <tbody>
+        {% for row in model_result.prediction_preview %}
+        <tr>
+          <th scope="row">{{ row.record_index }}</th>
+          <td>{{ "%.6g"|format(row.actual) }}</td>
+          <td>{{ "%.6g"|format(row.predicted) }}</td>
+          <td>{{ "%.6g"|format(row.residual_score) }}</td>
+          <td>{% if row.flagged %}Residual threshold exceeded{% else %}Not flagged{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<section class="panel summary-panel">
+  <div class="panel-heading">
+    <div>
+      <div class="eyebrow">LOCAL STATISTICS</div>
+      <h2>Sensor summaries</h2>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Sensor</th>
+          <th scope="col">Minimum</th>
+          <th scope="col">Maximum</th>
+          <th scope="col">Mean</th>
+          <th scope="col">Median</th>
+          <th scope="col">Std. deviation</th>
+          <th scope="col">First</th>
+          <th scope="col">Last</th>
+          <th scope="col">Net change</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for sensor in analysis.sensors %}
+        <tr>
+          <th scope="row">{{ sensor.name }}</th>
+          <td>{{ "%.6g"|format(sensor.minimum) }}</td>
+          <td>{{ "%.6g"|format(sensor.maximum) }}</td>
+          <td>{{ "%.6g"|format(sensor.mean) }}</td>
+          <td>{{ "%.6g"|format(sensor.median) }}</td>
+          <td>{{ "%.6g"|format(sensor.standard_deviation) }}</td>
+          <td>{{ "%.6g"|format(sensor.first_value) }}</td>
+          <td>{{ "%.6g"|format(sensor.last_value) }}</td>
+          <td>{{ "%.6g"|format(sensor.net_change) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel insights-panel" aria-labelledby="insights-title">
+  <div class="panel-heading">
+    <div>
+      <div class="eyebrow">AI-ASSISTED EXPLANATION</div>
+      <h2 id="insights-title">Gemini insights</h2>
+    </div>
+    <span class="subtle-label">SUMMARY ONLY</span>
+  </div>
+  {% if insights %}
+  <div class="insight-grid">
+    <article><h3>Executive summary</h3><p>{{ insights.summary }}</p></article>
+    <article><h3>Observations</h3><p>{{ insights.observations }}</p></article>
+    <article><h3>Limitations &amp; next steps</h3><p>{{ insights.limitations }}</p></article>
+  </div>
+  <p class="helper-text">
+    Gemini received bounded numerical summaries, not the uploaded rows. Review
+    its explanation against the local statistics; it does not make predictions.
+  </p>
+  {% else %}
+  <div class="notice notice-warning" role="status">{{ gemini_message }}</div>
+  <p class="muted">Local analysis and charts remain available without Gemini.</p>
+  {% endif %}
+</section>
+
+{% if database_message %}
+<p class="storage-message" role="status">{{ database_message }}</p>
+{% else %}
+<p class="storage-message success-message" role="status">A concise analysis summary was saved to history.</p>
+{% endif %}
+
+<script id="analysis-chart-data" type="application/json">{{ {
+  "series": analysis.chart_series,
+  "sensors": analysis.sensors,
+  "prediction": model_result.prediction_chart if model_result else none
+}|tojson }}</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"
+        crossorigin="anonymous" defer></script>
+<script src="{{ url_for('static', filename='js/results.js') }}" defer></script>
+{% endblock %}
